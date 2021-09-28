@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -52,6 +53,7 @@ namespace Html
         }
 
 
+
         private static void InserDirectiveToFile(string filename)
         {
             var doc = new HtmlDocument();
@@ -99,9 +101,9 @@ namespace Html
             }
         }
 
-        private static HtmlNodeCollection SelectAllTextNodes(HtmlDocument doc)
+        private static IEnumerable<HtmlNode> SelectAllTextNodes(HtmlDocument doc)
         {
-            return doc.DocumentNode.SelectNodes("//text()[normalize-space(.) != '']");
+            return doc.DocumentNode.SelectNodes("//text()[normalize-space(.) != '']").Where(n => n.ParentNode.Name != "script" && n.ParentNode.Name != "style");
         }
 
         private static void ManipulateNodeContainingOnlyText(HtmlNode htmlTextNode)
