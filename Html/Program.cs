@@ -66,7 +66,7 @@ namespace Html
                 }
 
             // Update write path here
-            using (FileStream fileStream = File.Create(filename))
+            using (FileStream fileStream = File.Create(@"C:\Users\bbilandzic\source\repos\Html\Html\HtmlFiles\fileResult.html"))
             {
                 doc.Save(fileStream, Encoding.UTF8);
             }
@@ -78,7 +78,7 @@ namespace Html
             foreach (var attribute in htmlNode.Attributes)
             {
                 // should match upon a list of attributes we want to translate
-                if (attribute.Name == "my-tooltip" || attribute.Name == "placeholder")
+                if (attribute.Name == "my -tooltip" || attribute.Name == "placeholder")
                 {
                     if(IsContainingAngular(attribute.Value) == false)
                     {
