@@ -110,16 +110,20 @@ namespace Html
             if (ShouldTranslateNodeText(nodeText) == false) return;
             if (IsContainingAngular(nodeText))
             {
+                string[] angularChunks = BuildRegexMatchesToArray(GetAngularRegex().Matches(nodeText));
                 string [] textToTranslate = nodeText.Split(
-                    BuildRegexMatchesToArray(GetAngularRegex().Matches(nodeText)), 
+                    angularChunks, 
                     StringSplitOptions.RemoveEmptyEntries
                     );
                 for (int i = 0; i < textToTranslate.Length; i++)
                 {
-                    if (ShouldTranslateNodeText(textToTranslate[i].Trim()) == false) continue;
-                    var translatedText = WrapTextInTranslationSpan(textToTranslate[i].Trim());
-                    nodeText = nodeText.Replace(textToTranslate[i]," " + translatedText + " ");
+                    nodeText = nodeText.Replace(textToTranslate[i].Trim(), TranslateTextChunk(textToTranslate[i].Trim()));
                 }
+                for(int i = 0; i< angularChunks.Length; i++)
+                {
+                    nodeText = nodeText.Replace(angularChunks[i], TranslateAngularChunk(angularChunks[i]));
+                }
+
                 htmlTextNode.InnerHtml = nodeText;
             } else
             {
@@ -146,9 +150,32 @@ namespace Html
             };
         }
 
-        private static bool IsContainingAngular(string nodeText)
+        private static string TranslateTextChunk(string textToTranslate)
         {
-            return GetAngularRegex().IsMatch(nodeText);
+            return ShouldTranslateNodeText(textToTranslate) == false ? textToTranslate : WrapTextInTranslationSpan(textToTranslate);
+        }
+
+        private static string TranslateAngularChunk(string angularToTranslate)
+        {
+            if (IsContainingAngular(angularToTranslate) == false) return angularToTranslate;
+            var angularVariable = GetAngularVariable(angularToTranslate);
+            if (shouldTranslateAngularVariable(angularVariable) == false) return angularToTranslate;
+            return " {{ " + angularVariable + " | translate }}";
+        }
+
+        private static bool shouldTranslateAngularVariable(string angularVariable)
+        {
+            return angularVariable.EndsWith(".title", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetAngularVariable(string angularChunk)
+        {
+            return new string(angularChunk.ToCharArray().Where(c => c != '{' && c != '}').ToArray());
+        }
+
+        private static bool IsContainingAngular(string text)
+        {
+            return GetAngularRegex().IsMatch(text);
         }
 
         private static Regex GetAngularRegex()
