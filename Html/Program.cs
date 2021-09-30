@@ -43,7 +43,7 @@ namespace Html
         private static void InserDirectivesToFile(string filename)
         {
             if (filename.Contains("Vendor")) return;
-            // Console.WriteLine($"Writing directives to {filename}");
+            Console.WriteLine($"Writing directives to {filename}");
             var doc = new HtmlDocument();
             doc.Load(filename);
             doc.OptionWriteEmptyNodes = true;
@@ -82,7 +82,6 @@ namespace Html
                 {
                     if(IsContainingAngular(attribute.Value) == false)
                     {
-                        Console.WriteLine($"Translating {attribute.Name}");
                         attribute.Value = "{{'" + attribute.Value + "' | translate}}"; 
                     } else
                     {
