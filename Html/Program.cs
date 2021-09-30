@@ -17,68 +17,59 @@ namespace Html
             InsertDirectivesToHtmlFiles();
         }
 
-        private static void RegexHell()
-        {
-            // Function to test various regexes..Ignore
-            var tests = new string[] { "not angular. dont { match", "{{wait}}", "Wait {{What is}} this on {{hello}}" };
-
-            Regex angularRegex = GetAngularRegex();
-
-            foreach (var test in tests)
-            {
-                Console.WriteLine(test);
-                
-                foreach (var match in angularRegex.Matches(test))
-                {
-                    Console.WriteLine(match);
-                }             
-            }
-            Console.ReadKey();
-        }
-
         private static void InsertDirectivesToHtmlFiles()
         {
-            // Update read path here
-            var PathToHtmlFiles = @"C:\Users\bbilandzic\source\repos\Html\Html\HtmlFiles";
-
-            var HtmlFileNames = Directory.GetFiles(PathToHtmlFiles, "file.html", SearchOption.AllDirectories);
-
-            foreach (var item in HtmlFileNames)
+            foreach (var item in getHtmlFileNames())
             {
-                InserDirectiveToFile(item);
+                InserDirectivesToFile(item);
             }
 
-
+            Console.WriteLine("Finish");
             Console.ReadKey();
         }
 
-
-
-        private static void InserDirectiveToFile(string filename)
+        private static IEnumerable<string> getHtmlFileNames()
         {
+            var fileList = new List<string>();
+
+            foreach (var path in getDirectoryPaths())
+            {
+                fileList.AddRange(Directory.GetFiles(path, "*file.html", SearchOption.AllDirectories));
+            }
+
+            return fileList;
+        }
+
+        private static void InserDirectivesToFile(string filename)
+        {
+            if (filename.Contains("Vendor")) return;
+            // Console.WriteLine($"Writing directives to {filename}");
             var doc = new HtmlDocument();
             doc.Load(filename);
-
+            doc.OptionWriteEmptyNodes = true;
+            doc.GlobalAttributeValueQuote = AttributeValueQuote.Initial;
+            doc.OptionDefaultUseOriginalName = true;
+            doc.OptionOutputOriginalCase = true;
             var htmlTextNodes = SelectAllTextNodes(doc);
             var htmlNodes = doc.DocumentNode.Descendants();
 
-            Console.WriteLine($"\n\n------------FileName: {filename}---------------\n");
+            if(htmlTextNodes != null)
+                foreach (var htmlTextNode in htmlTextNodes)
+                {
+                    TranslateNodeText(htmlTextNode);
+                }
 
-            foreach (var htmlNode in htmlTextNodes)
-            {
-                ManipulateNodeContainingOnlyText(htmlNode);
-            }
-
-            foreach(var htmlNode in htmlNodes)
-            {
-                TranslateNodeAttributes(htmlNode);
-            }
+            if(htmlNodes != null)
+                foreach(var htmlNode in htmlNodes)
+                {
+                   TranslateNodeAttributes(htmlNode);
+                }
 
             // Update write path here
-            using (FileStream fileStream = File.Create(@"C:\Users\bbilandzic\source\repos\Html\Html\HtmlFiles\fileResult.html"))
+            using (FileStream fileStream = File.Create(filename))
             {
-                doc.Save(fileStream);
-            }     
+                doc.Save(fileStream, Encoding.UTF8);
+            }
 
         }
 
@@ -91,6 +82,7 @@ namespace Html
                 {
                     if(IsContainingAngular(attribute.Value) == false)
                     {
+                        Console.WriteLine($"Translating {attribute.Name}");
                         attribute.Value = "{{'" + attribute.Value + "' | translate}}"; 
                     } else
                     {
@@ -103,35 +95,32 @@ namespace Html
 
         private static IEnumerable<HtmlNode> SelectAllTextNodes(HtmlDocument doc)
         {
-            return doc.DocumentNode.SelectNodes("//text()[normalize-space(.) != '']").Where(n => n.ParentNode.Name != "script" && n.ParentNode.Name != "style");
-        }
-
-        private static void ManipulateNodeContainingOnlyText(HtmlNode htmlTextNode)
-        {
-            Console.WriteLine(htmlTextNode.InnerText.Trim());
-            WrapInSpan(htmlTextNode);
+            return doc.DocumentNode
+                .SelectNodes("//text()[normalize-space(.) != '']")?
+                .Where(n => n.ParentNode.Name != "script" && n.ParentNode.Name != "style");
         }
 
         private static string WrapTextInTranslationSpan(string text)
         {
-            return String.Format("<span trasnlate=\"{0}\" translate-default=\"{1}\"></span>", text, text);
+            return String.Format("\n<span translate=\"{0}\" translate-default=\"{1}\"></span>\n", text, text);
         }
 
-        private static void WrapInSpan(HtmlNode htmlTextNode)
+        private static void TranslateNodeText(HtmlNode htmlTextNode)
         {
             var nodeText = htmlTextNode.InnerText.Trim();
-            if (String.IsNullOrEmpty(nodeText)) return;
+            if (ShouldTranslateNodeText(nodeText) == false) return;
             if (IsContainingAngular(nodeText))
             {
-                // manage angular contaminated text translation
-                var textToTranslate = nodeText.Split(BuildRegexMatchesToArray(GetAngularRegex().Matches(nodeText)), StringSplitOptions.RemoveEmptyEntries);
+                string [] textToTranslate = nodeText.Split(
+                    BuildRegexMatchesToArray(GetAngularRegex().Matches(nodeText)), 
+                    StringSplitOptions.RemoveEmptyEntries
+                    );
                 for (int i = 0; i < textToTranslate.Length; i++)
                 {
+                    if (ShouldTranslateNodeText(textToTranslate[i].Trim()) == false) continue;
                     var translatedText = WrapTextInTranslationSpan(textToTranslate[i].Trim());
-                    Console.WriteLine($"Translating '{textToTranslate[i]}' to '{translatedText}'");
                     nodeText = nodeText.Replace(textToTranslate[i]," " + translatedText + " ");
                 }
-                Console.WriteLine($"Inner Text:\n{nodeText}");
                 htmlTextNode.InnerHtml = nodeText;
             } else
             {
@@ -139,16 +128,43 @@ namespace Html
             }
         }
 
+        private static bool ShouldTranslateNodeText(string nodeText)
+        {
+            return (
+                String.IsNullOrEmpty(nodeText) ||
+                ContainsCSharpCode(nodeText) ||
+                (nodeText.StartsWith('{') && IsContainingAngular(nodeText) == false) ||
+                nodeText.StartsWith('}') ||
+                IsNotWordOnlyRegex(nodeText)
+                ) == false;            
+        }
+        private static string [] getDirectoryPaths()
+        {
+            return new string[]
+            {
+               @"C:\Users\bbilandzic\source\repos\Html\Html\HtmlFiles"
+               // DIRECTORIES OF INTEREST HERE
+            };
+        }
+
         private static bool IsContainingAngular(string nodeText)
         {
-            var angularRegex = GetAngularRegex();
-            return angularRegex.IsMatch(nodeText);
+            return GetAngularRegex().IsMatch(nodeText);
         }
 
         private static Regex GetAngularRegex()
         {
-            string angularRegexPattern = @"\{\{[^\{\}]*\}\}";
-            return new Regex(angularRegexPattern);
+            return new Regex(@"\{\{[^\{\}]*\}\}");
+        }
+
+        private static bool IsNotWordOnlyRegex(string nodeText)
+        {
+            return new Regex(@"^\W+$").IsMatch(nodeText);
+        }
+
+        private static bool ContainsCSharpCode(string nodeText)
+        {
+            return new Regex(@"@").IsMatch(nodeText);
         }
 
         private static string [] BuildRegexMatchesToArray(MatchCollection matches)
